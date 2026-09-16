@@ -55,41 +55,41 @@ flowchart LR
     end
 
     subgraph web["web/ – HTTP & WebSocket"]
-        EC[EventController]
-        CC[CategoryController]
-        SC[SettingsController]
-        TC[TestingController]
-        WS[LiveUpdatesSocket]
-        EH[ExceptionHandlers]
+        EC["EventController"]
+        CC["CategoryController"]
+        SC["SettingsController"]
+        TC["TestingController"]
+        WS["LiveUpdatesSocket"]
+        EH["ExceptionHandlers"]
     end
 
     subgraph service["service/ – business logic"]
-        ES[EventService<br/>@Transactional]
-        CS[CategoryService<br/>@Transactional · @Cacheable]
-        TS[TextService<br/>Jakarta EL]
-        IS[ICalService]
-        CN[ChangeNotifier<br/>@TransactionalEventListener]
-        SEED[CategorySeeder<br/>StartupEvent]
+        ES["EventService<br/>@Transactional"]
+        CS["CategoryService<br/>@Transactional · @Cacheable"]
+        TS["TextService<br/>Jakarta EL"]
+        IS["ICalService"]
+        CN["ChangeNotifier<br/>@TransactionalEventListener"]
+        SEED["CategorySeeder<br/>StartupEvent"]
     end
 
     subgraph jobs["jobs/"]
-        RJ[ReminderJob<br/>@Scheduled]
+        RJ["ReminderJob<br/>@Scheduled"]
     end
 
     subgraph repo["repository/ – Micronaut Data JDBC"]
-        ER[EventRepository]
-        CR[CategoryRepository]
+        ER["EventRepository"]
+        CR["CategoryRepository"]
     end
 
-    DB[(H2<br/>Flyway schema)]
+    DB[("H2<br/>Flyway schema")]
 
-    UI -- "REST (JSON, text/calendar, text/plain)" --> EC & CC & SC & TC
-    UI <-. "WebSocket /ws/events" .-> WS
+    UI -->|"REST (JSON, text/calendar, text/plain)"| EC & CC & SC & TC
+    UI <-.->|"WebSocket /ws/events"| WS
     EC --> ES & IS & TS
     CC --> CS
     TC --> ES & RJ & WS & TS
     ES & CS --> ER & CR
-    ES & CS -- "publishEvent(EventChange)" --> CN
+    ES & CS -->|"publishEvent(EventChange)"| CN
     CN --> TS
     CN --> WS
     RJ --> ER
@@ -142,7 +142,7 @@ sequenceDiagram
     C->>S: create(event)
     S->>S: business rules (end ≥ start, category exists)
     S-->>B: InvalidRequestException → 400 (ExceptionHandler)
-    S->>R: save(event)  (INSERT; @DateCreated, @Version set)
+    S->>R: save(event) — INSERT, sets @DateCreated and @Version
     S->>P: publishEvent(EventChange("created", id, title))
     Note over P,N: the listener is deferred until the transaction commits
     S->>R: getById(id)  (@Join category)
