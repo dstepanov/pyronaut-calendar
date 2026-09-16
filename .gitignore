@@ -1,0 +1,12 @@
+__pyronaut__/
+.venv/
+data/
+__pycache__/
+.venv-e2e/
+test-results/
+.pytest_cache/
+
+# local IDE / tool settings
+.idea/
+.claude/
+.DS_Store

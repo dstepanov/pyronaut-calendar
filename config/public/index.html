@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pyronaut Calendar</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7385;
+    --border: #e1e4ea; --accent: #2f6fed; --accent-soft: #e6eefd; --danger: #d33a3a;
+    --today: #fff6dd; --ok: #1f9d55;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b; --panel: #1c1f26; --text: #e6e8ee; --muted: #9098a9;
+      --border: #2d313b; --accent: #6b9bff; --accent-soft: #24304a; --danger: #ff6b6b;
+      --today: #2e2a1c; --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  #title { font-size: 16px; font-weight: 600; min-width: 170px; }
+  .spacer { flex: 1; }
+  .live { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .live.on::before { background: var(--ok); }
+  button, .btn { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; text-decoration: none; display: inline-block; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.active { background: var(--accent-soft); border-color: var(--accent); }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; padding: 16px; }
+  aside { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .cat { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+  .cat:hover { background: var(--accent-soft); }
+  .cat.selected { background: var(--accent-soft); font-weight: 600; }
+  .cat .name { flex: 1; }
+  .cat button { visibility: hidden; }
+  .cat:hover button { visibility: visible; }
+  .row-form { display: flex; gap: 6px; margin-top: 8px; }
+  .row-form input[type=text] { flex: 1; min-width: 0; }
+  .row-form input[type=color] { width: 34px; padding: 2px; }
+  .links a { display: block; color: var(--accent); text-decoration: none; padding: 2px 0; }
+  .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--border); gap: 1px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .dow { background: var(--panel); padding: 6px 8px; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+  .day { background: var(--panel); min-height: 104px; padding: 4px 6px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .week .day { min-height: 60vh; }
+  .day.other { opacity: .45; }
+  .day.today { background: var(--today); }
+  .day .num { font-size: 12px; color: var(--muted); align-self: flex-end; }
+  .ev { border-radius: 4px; padding: 2px 6px; font-size: 12px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .ev .t { opacity: .85; margin-right: 4px; }
+  .section-title { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; }
+  .section-title h2 { font-size: 15px; margin: 0; }
+  .list .row { display: flex; gap: 12px; align-items: center; padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: pointer; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .muted { color: var(--muted); }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--accent-soft); margin-left: 6px; }
+  .pager { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  pre.agenda { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; white-space: pre-wrap; margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  input, textarea, select { font: inherit; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 100%; }
+  dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); width: min(480px, calc(100vw - 32px)); padding: 0; }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  form.event { padding: 18px; display: grid; gap: 10px; }
+  form.event h2 { margin: 0 0 4px; font-size: 17px; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  textarea { min-height: 70px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .actions { display: flex; gap: 8px; margin-top: 6px; }
+  .error { color: var(--danger); font-size: 13px; min-height: 1em; }
+  #toasts { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: calc(100vw - 32px); }
+  .toast { background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.2); animation: fade .2s; }
+  .toast.reminder { background: var(--accent); color: #fff; font-weight: 600; }
+  .menu { position: relative; }
+  .menu > summary { list-style: none; }
+  .menu > summary::-webkit-details-marker { display: none; }
+  .menu-items { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 250px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; }
+  .menu-items button { text-align: left; border: 0; width: 100%; }
+  .menu-items button:hover { background: var(--accent-soft); }
+  .menu-items hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
+  .toast.notice { background: var(--ok); color: #fff; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .day { min-height: 70px; }
+    .ev .t { display: none; }
+    .two { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="appName">📅 Pyronaut Calendar</h1>
+  <button id="prev" aria-label="Previous">‹</button>
+  <button id="today">Today</button>
+  <button id="next" aria-label="Next">›</button>
+  <div id="title"></div>
+  <div class="spacer"></div>
+  <span id="live" class="live" title="Live updates over WebSocket">offline</span>
+  <button id="viewMonth" class="active">Month</button>
+  <button id="viewWeek">Week</button>
+  <details id="testingMenu" class="menu" hidden>
+    <summary class="btn" role="button">🧪 Testing</summary>
+    <div class="menu-items" role="menu">
+      <button role="menuitem" data-action="random-event">Add a random event</button>
+      <button role="menuitem" data-action="sample-events">Add sample week of events</button>
+      <button role="menuitem" data-action="reminder">Show a reminder for the next event</button>
+      <button role="menuitem" data-action="run-reminders">Run reminder job</button>
+      <button role="menuitem" data-action="reset-reminders">Reset reminder flags</button>
+      <button role="menuitem" data-action="broadcast">Broadcast a notification…</button>
+      <hr>
+      <button role="menuitem" data-action="delete-all" class="danger">Delete all events</button>
+    </div>
+  </details>
+  <button id="add" class="primary">+ New event</button>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="card">
+      <h2>Search</h2>
+      <input id="q" type="search" placeholder="Title or description…">
+    </div>
+    <div class="card">
+      <h2>Categories</h2>
+      <div id="cats"></div>
+      <form id="catForm" class="row-form">
+        <input type="text" name="name" placeholder="New category" maxlength="60" required>
+        <input type="color" name="color" value="#0e9aa7" aria-label="Color">
+        <button class="small" type="submit">Add</button>
+      </form>
+    </div>
+    <div class="card links">
+      <h2>More</h2>
+      <a href="/api/events/export.ics" download>⬇ Export .ics</a>
+      <a href="/swagger-ui/index.html" target="_blank">API docs (Swagger UI)</a>
+      <a href="/health" target="_blank">Health</a>
+    </div>
+  </aside>
+
+  <main>
+    <div id="grid" class="grid"></div>
+
+    <section id="searchSection" class="list" hidden>
+      <div class="section-title"><h2>Search results</h2><span id="searchInfo" class="muted"></span></div>
+      <div id="results"></div>
+      <div class="pager"><button id="pgPrev" class="small">‹ Prev</button><span id="pgInfo" class="muted"></span><button id="pgNext" class="small">Next ›</button></div>
+    </section>
+
+    <section>
+      <div class="section-title"><h2>Agenda</h2><input id="agendaDay" type="date" style="width:auto"></div>
+      <pre id="agenda" class="agenda">…</pre>
+    </section>
+
+    <section class="list">
+      <div class="section-title"><h2>Events in view</h2></div>
+      <div id="list"></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <form id="form" class="event" method="dialog">
+    <h2 id="formTitle">New event</h2>
+    <label>Title<input name="title" required maxlength="200"></label>
+    <div class="two">
+      <label>Start<input name="start" type="datetime-local" required></label>
+      <label>End<input name="end" type="datetime-local" required></label>
+    </div>
+    <div class="two">
+      <label>Category<select name="category" aria-label="Category"></select></label>
+      <label>Reminder
+        <select name="reminder" aria-label="Reminder">
+          <option value="">None</option>
+          <option value="0">At start</option>
+          <option value="5">5 minutes before</option>
+          <option value="15">15 minutes before</option>
+          <option value="30">30 minutes before</option>
+          <option value="60">1 hour before</option>
+          <option value="1440">1 day before</option>
+        </select>
+      </label>
+    </div>
+    <label>Location<input name="location" maxlength="200"></label>
+    <label>Description<textarea name="description" maxlength="2000"></textarea></label>
+    <div class="error" id="err"></div>
+    <div class="actions">
+      <button type="button" id="del" class="danger">Delete</button>
+      <div class="spacer"></div>
+      <button type="button" id="cancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+<div id="toasts"></div>
+
+<script>
+const API = '/api';
+const FALLBACK_COLOR = '#2f6fed';
+const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const $ = (id) => document.getElementById(id);
+
+let settings = { defaultDurationMinutes: 60, defaultReminderMinutes: 15 };
+let view = 'month';
+let cursor = startOfDay(new Date());
+let events = [];
+let categories = [];
+let categoryFilter = null;
+let editing = null;
+let search = { q: '', page: 0, size: 5 };
+
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function startOfWeek(d) { const x = startOfDay(d); return addDays(x, -((x.getDay() + 6) % 7)); }
+function sameDay(a, b) { return a.toDateString() === b.toDateString(); }
+function pad(n) { return String(n).padStart(2, '0'); }
+function toDate(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+// LocalDateTime string (no zone) used both by the API and <input type=datetime-local>
+function toLocal(d) { return `${toDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function parseLocal(s) { return new Date(s); }
+function fmtTime(d) { return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function fmtRange(e) {
+  const s = parseLocal(e.start), en = parseLocal(e.end);
+  return `${s.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} – ${sameDay(s, en) ? fmtTime(en) : en.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function colorOf(e) { return e.color || (e.category && e.category.color) || FALLBACK_COLOR; }
+
+async function api(path, options = {}) {
+  const r = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...options });
+  if (!r.ok) throw new Error(await errorText(r));
+  return r.status === 204 ? null : (r.headers.get('Content-Type') || '').includes('json') ? r.json() : r.text();
+}
+
+async function errorText(r) {
+  try {
+    const j = await r.json();
+    const embedded = j._embedded && j._embedded.errors;
+    return embedded ? embedded.map(e => e.message).join('; ') : (j.message || r.statusText);
+  } catch { return `Request failed (${r.status})`; }
+}
+
+function range() {
+  if (view === 'week') { const s = startOfWeek(cursor); return [s, addDays(s, 7)]; }
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const s = startOfWeek(first);
+  return [s, addDays(s, 42)];
+}
+
+// ---------- data loading
+async function loadEvents() {
+  const [from, to] = range();
+  const params = new URLSearchParams({ from: toLocal(from) + ':00', to: toLocal(to) + ':00' });
+  if (categoryFilter) params.set('category', categoryFilter);
+  events = await api(`/events?${params}`).catch(() => []);
+  renderCalendar();
+}
+
+async function loadCategories() {
+  categories = await api('/categories').catch(() => []);
+  renderCategories();
+}
+
+async function loadAgenda() {
+  $('agenda').textContent = await api(`/events/agenda?day=${$('agendaDay').value}`).catch(e => e.message);
+}
+
+async function runSearch() {
+  const section = $('searchSection');
+  if (!search.q) { section.hidden = true; return; }
+  const params = new URLSearchParams({ q: search.q, page: search.page, size: search.size, sort: 'start' });
+  const page = await api(`/events/search?${params}`).catch(() => null);
+  section.hidden = false;
+  if (!page) { $('results').innerHTML = '<div class="muted">Search failed.</div>'; return; }
+  $('searchInfo').textContent = `${page.totalSize} match${page.totalSize === 1 ? '' : 'es'}`;
+  $('results').innerHTML = '';
+  page.content.forEach(e => $('results').appendChild(eventRow(e)));
+  if (!page.content.length) $('results').innerHTML = '<div class="muted">Nothing found.</div>';
+  const number = page.pageable.number, pages = Math.ceil(page.totalSize / page.pageable.size);
+  $('pgInfo').textContent = pages ? `Page ${number + 1} of ${pages}` : '';
+  $('pgPrev').disabled = number <= 0;
+  $('pgNext').disabled = number + 1 >= pages;
+}
+
+function refreshAll() { loadEvents(); loadAgenda(); runSearch(); }
+
+// ---------- rendering
+function renderCalendar() {
+  const [from, to] = range();
+  $('title').textContent = view === 'month'
+    ? cursor.toLocaleDateString([], { month: 'long', year: 'numeric' })
+    : `${from.toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${addDays(to, -1).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  $('viewMonth').classList.toggle('active', view === 'month');
+  $('viewWeek').classList.toggle('active', view === 'week');
+
+  const grid = $('grid');
+  grid.className = 'grid ' + view;
+  grid.innerHTML = DOW.map(d => `<div class="dow">${d}</div>`).join('');
+  const today = startOfDay(new Date());
+  for (let d = new Date(from); d < to; d = addDays(d, 1)) {
+    const dayStart = new Date(d), dayEnd = addDays(d, 1);
+    const cell = document.createElement('div');
+    cell.className = 'day' + (sameDay(d, today) ? ' today' : '')
+      + (view === 'month' && d.getMonth() !== cursor.getMonth() ? ' other' : '');
+    cell.innerHTML = `<span class="num">${d.getDate()}</span>`;
+    cell.onclick = () => { $('agendaDay').value = toDate(dayStart); loadAgenda(); openNew(dayStart); };
+    events
+      .filter(e => parseLocal(e.start) < dayEnd && parseLocal(e.end) > dayStart)
+      .forEach(e => {
+        const el = document.createElement('div');
+        el.className = 'ev';
+        el.style.background = colorOf(e);
+        el.title = e.title;
+        el.innerHTML = `<span class="t">${fmtTime(parseLocal(e.start))}</span>${e.reminder_minutes != null ? '⏰ ' : ''}${esc(e.title)}`;
+        el.onclick = (ev) => { ev.stopPropagation(); openEdit(e); };
+        cell.appendChild(el);
+      });
+    grid.appendChild(cell);
+  }
+
+  $('list').innerHTML = events.length ? '' : '<div class="muted">No events. Click a day or “New event” to add one.</div>';
+  events.forEach(e => $('list').appendChild(eventRow(e)));
+}
+
+function eventRow(e) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<span class="dot" style="background:${esc(colorOf(e))}"></span>
+    <div><strong>${esc(e.title)}</strong>${e.category ? `<span class="tag">${esc(e.category.name)}</span>` : ''}
+    <div class="muted">${fmtRange(e)}${e.location ? ' · ' + esc(e.location) : ''}${e.reminder_minutes != null ? ` · ⏰ ${e.reminder_minutes} min` : ''}</div></div>`;
+  row.onclick = () => openEdit(e);
+  return row;
+}
+
+function renderCategories() {
+  const box = $('cats');
+  box.innerHTML = '';
+  const all = document.createElement('div');
+  all.className = 'cat' + (categoryFilter == null ? ' selected' : '');
+  all.innerHTML = '<span class="dot" style="background:var(--muted)"></span><span class="name">All categories</span>';
+  all.onclick = () => { categoryFilter = null; renderCategories(); loadEvents(); };
+  box.appendChild(all);
+  categories.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cat' + (categoryFilter === c.id ? ' selected' : '');
+    el.innerHTML = `<span class="dot" style="background:${esc(c.color || FALLBACK_COLOR)}"></span><span class="name">${esc(c.name)}</span><button class="small danger" title="Delete category">✕</button>`;
+    el.onclick = () => { categoryFilter = c.id; renderCategories(); loadEvents(); };
+    el.querySelector('button').onclick = async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Delete category “${c.name}”? Its events are kept without a category.`)) return;
+      try { await api(`/categories/${c.id}`, { method: 'DELETE' }); if (categoryFilter === c.id) categoryFilter = null; }
+      catch (e) { toast(e.message); }
+    };
+    box.appendChild(el);
+  });
+  const select = $('form').category;
+  const current = select.value;
+  select.innerHTML = '<option value="">No category</option>' + categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  select.value = current;
+}
+
+// ---------- event dialog
+function fillForm(e) {
+  const f = $('form');
+  f.title.value = e.title || '';
+  f.start.value = e.start.slice(0, 16);
+  f.end.value = e.end.slice(0, 16);
+  f.location.value = e.location || '';
+  f.description.value = e.description || '';
+  f.category.value = e.category ? String(e.category.id) : '';
+  f.reminder.value = e.reminder_minutes == null ? '' : String(e.reminder_minutes);
+  $('err').textContent = '';
+}
+
+function openNew(day) {
+  editing = null;
+  const start = new Date(day || new Date());
+  if (day) start.setHours(9, 0, 0, 0); else { start.setMinutes(0, 0, 0); start.setHours(start.getHours() + 1); }
+  const end = new Date(start.getTime() + settings.defaultDurationMinutes * 60000);
+  fillForm({ start: toLocal(start), end: toLocal(end), category: categoryFilter ? { id: categoryFilter } : null, reminder_minutes: settings.defaultReminderMinutes });
+  $('formTitle').textContent = 'New event';
+  $('del').style.display = 'none';
+  $('dlg').showModal();
+}
+
+function openEdit(e) {
+  editing = e;
+  fillForm(e);
+  $('formTitle').textContent = 'Edit event';
+  $('del').style.display = '';
+  $('dlg').showModal();
+}
+
+async function save(ev) {
+  ev.preventDefault();
+  const f = $('form');
+  const body = {
+    title: f.title.value.trim(),
+    start: f.start.value + ':00',
+    end: f.end.value + ':00',
+    location: f.location.value.trim() || null,
+    description: f.description.value.trim() || null,
+    category: f.category.value ? { id: Number(f.category.value) } : null,
+    reminder_minutes: f.reminder.value === '' ? null : Number(f.reminder.value),
+  };
+  if (new Date(body.end) < new Date(body.start)) { $('err').textContent = 'End must not be before start.'; return; }
+  try {
+    await api(editing ? `/events/${editing.id}` : '/events', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) });
+  } catch (e) { $('err').textContent = e.message; return; }
+  $('dlg').close();
+  cursor = startOfDay(parseLocal(body.start));
+  $('agendaDay').value = toDate(cursor);
+  refreshAll();
+}
+
+async function remove() {
+  if (!editing || !confirm(`Delete “${editing.title}”?`)) return;
+  try { await api(`/events/${editing.id}`, { method: 'DELETE' }); }
+  catch (e) { $('err').textContent = e.message; return; }
+  $('dlg').close();
+  refreshAll();
+}
+
+// ---------- live updates (Micronaut WebSocket)
+function connectLive() {
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/events`);
+  ws.onopen = () => { $('live').textContent = 'live'; $('live').classList.add('on'); };
+  ws.onclose = () => { $('live').textContent = 'offline'; $('live').classList.remove('on'); setTimeout(connectLive, 3000); };
+  ws.onmessage = (msg) => {
+    let data;
+    try { data = JSON.parse(msg.data); } catch { return; }
+    if (data.type === 'reminder') {
+      toast(data.message, 'reminder', 15000);
+      if ('Notification' in window && Notification.permission === 'granted') new Notification(data.message);
+      return;
+    }
+    if (data.type === 'notice') { toast(data.message, 'notice', 6000); return; }
+    toast(data.message);
+    if (data.type.startsWith('category-')) loadCategories();
+    refreshAll();
+  };
+}
+
+function toast(message, kind = '', ms = 2500) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.textContent = message;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}
+
+function shift(dir) {
+  if (view === 'week') cursor = addDays(cursor, 7 * dir);
+  else cursor = new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1);
+  loadEvents();
+}
+
+// ---------- testing menu (only when calendar.testing.enabled)
+const TESTING_ACTIONS = {
+  'random-event': async () => {
+    const e = await api('/testing/random-event', { method: 'POST' });
+    const start = parseLocal(e.start);
+    if (view === 'week') cursor = startOfDay(start);  // make sure it is in view; "Added …" arrives over the WebSocket
+    else if (start.getMonth() !== cursor.getMonth()) cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    return null;
+  },
+  'sample-events': async () => {
+    const r = await api('/testing/sample-events', { method: 'POST' });
+    cursor = startOfDay(new Date());
+    return `Created ${r.created} sample events this week`;
+  },
+  'reminder': async () => {
+    // the reminder arrives over the WebSocket; nothing is saved
+    await api('/testing/reminder', { method: 'POST' });
+    return null;
+  },
+  'run-reminders': async () => {
+    const r = await api('/testing/run-reminders', { method: 'POST' });
+    return `Reminder job sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}`;
+  },
+  'reset-reminders': async () => {
+    const r = await api('/testing/reset-reminders', { method: 'POST' });
+    refreshAll();
+    return `Reset ${r.reset} reminder flag${r.reset === 1 ? '' : 's'}`;
+  },
+  'broadcast': async () => {
+    const message = prompt('Message to broadcast to every open tab:', 'Hello from the testing menu 👋');
+    if (!message) return null;
+    await api('/testing/broadcast', { method: 'POST', body: JSON.stringify({ message }) });
+    return null;
+  },
+  'delete-all': async () => {
+    if (!confirm('Delete ALL events?')) return null;
+    await api('/testing/events', { method: 'DELETE' });
+    return null;
+  },
+};
+
+$('testingMenu').addEventListener('click', async (ev) => {
+  const action = ev.target.closest('button[data-action]')?.dataset.action;
+  if (!action) return;
+  $('testingMenu').open = false;
+  try {
+    const message = await TESTING_ACTIONS[action]();
+    if (message) toast(message);
+  } catch (e) { toast(e.message); }
+});
+document.addEventListener('click', (ev) => {
+  if (!$('testingMenu').contains(ev.target)) $('testingMenu').open = false;
+});
+
+// ---------- wiring
+$('prev').onclick = () => shift(-1);
+$('next').onclick = () => shift(1);
+$('today').onclick = () => { cursor = startOfDay(new Date()); loadEvents(); };
+$('viewMonth').onclick = () => { view = 'month'; loadEvents(); };
+$('viewWeek').onclick = () => { view = 'week'; loadEvents(); };
+$('add').onclick = () => {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  openNew();
+};
+$('cancel').onclick = () => $('dlg').close();
+$('del').onclick = remove;
+$('form').onsubmit = save;
+$('agendaDay').onchange = loadAgenda;
+$('pgPrev').onclick = () => { search.page--; runSearch(); };
+$('pgNext').onclick = () => { search.page++; runSearch(); };
+let searchTimer;
+$('q').oninput = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { search.q = $('q').value.trim(); search.page = 0; runSearch(); }, 250);
+};
+$('catForm').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    await api('/categories', { method: 'POST', body: JSON.stringify({ name: f.name.value.trim(), color: f.color.value }) });
+    f.reset();
+  } catch (e) { toast(e.message); }
+};
+
+(async function init() {
+  $('agendaDay').value = toDate(new Date());
+  settings = await api('/settings').catch(() => settings);
+  $('appName').textContent = '📅 ' + settings.name;
+  $('testingMenu').hidden = !settings.testingEnabled;
+  document.title = settings.name;
+  await loadCategories();
+  refreshAll();
+  connectLive();
+})();
+</script>
+</body>
+</html>
